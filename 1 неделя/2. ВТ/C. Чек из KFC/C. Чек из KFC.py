@@ -59,7 +59,7 @@ class KFC(QWidget):
     def __init__(self):
         super(KFC, self).__init__()
         self.setWindowTitle('KFC')
-        self.setFixedSize(620, 400)
+        self.setFixedWidth(620)
         self.main = QVBoxLayout(self)
         self.main.setSpacing(0)
         self.main.setContentsMargins(1, 10, 1, 0)
