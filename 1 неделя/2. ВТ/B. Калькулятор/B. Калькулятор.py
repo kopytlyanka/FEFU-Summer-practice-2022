@@ -29,11 +29,11 @@ class Calculator(QMainWindow):
     }
     def __init__(self):
         super(Calculator, self).__init__()
-        uic.loadUi("C:/Users/1/PycharmProjects/летняя практика/1 неделя/2. ВТ/B. Калькулятор/calculator.ui", self)
+        uic.loadUi("calculator.ui", self)
         self.buttons = QButtonGroup()
         self.buttons.buttonClicked.connect(self.request)
         for i in range(22):
-            exec( f'self.buttons.addButton(self.pushButton_{i})')
+            exec(f'self.buttons.addButton(self.pushButton_{i})')
         self.conditions_stack = Stack(self.request_dict['0'])
         self.parenthesis_count = 0
         self.expression = '0'
