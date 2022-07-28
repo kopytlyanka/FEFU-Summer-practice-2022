@@ -8,11 +8,11 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QSpacerItem,
     QSizePolicy,
-    QInputDialog,
-    QLineEdit,
     QDialog,
-    QHBoxLayout,
-    QFormLayout
+    QFormLayout,
+    QSpinBox,
+    QRadioButton,
+    QLineEdit
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QMouseEvent, QCloseEvent, QAction, QActionGroup
@@ -27,6 +27,10 @@ paddings = int(int(config['DEFAULT']['cell_size']) / 3)
 panel_size = int(int(config['DEFAULT']['cell_size']) * 1.5)
 LCD_width = int(int(config['DEFAULT']['cell_size']) * 2.5)
 B_size = int(int(config['DEFAULT']['cell_size']) * 1.3)
+
+MIN_H, MAX_H = 8, 100   # TODO: Подставь нужные значения пожалуйста
+MIN_W, MAX_W = 8, 100   # TODO: Подставь нужные значения пожалуйста 
+P = 1                   # TODO: Подставь нужные значения пожалуйста
 
 # LCDCounter -----------------------------------------------------------------------------------------------------------
 class LCDCounter(QLCDNumber):
@@ -72,25 +76,91 @@ class LCDCounter(QLCDNumber):
 # ----------------------------------------------------------------------------------------------------------------------
 # Диалог для ввода пользоватеьской сложности----------------------------------------------------------------------------
 class InputDifficulty(QDialog):
-    def __init__(self):
+    def __init__(self, cur_diff: Difficulty):
         super(InputDifficulty, self).__init__()
-        self.setWindowTitle('Host Parameters')
+        self.setWindowTitle('Set Custom Difficulty')
         self.setModal(True)
-        self.line_host = QLineEdit()
-        self.line_user = QLineEdit()
-        self.line_pass = QLineEdit()
-        self.connect = QPushButton("connect")
-        self.hbox = QHBoxLayout()
+        self.easy = QRadioButton(self)
+        self.easy.setText('Easy')
+        self.easy.clicked.connect(self.check_checked)
+        self.normal = QRadioButton(self)
+        self.normal.setText('Normal')
+        self.normal.clicked.connect(self.check_checked)
+        self.hard = QRadioButton(self)
+        self.hard.setText('Hard')
+        self.hard.clicked.connect(self.check_checked)
+        self.custom = QRadioButton(self)
+        self.custom.setText('Custom')
+        self.custom.clicked.connect(self.check_checked)
+        self.h_spin = QSpinBox(self)
+        self.h_spin.setMinimum(MIN_H)
+        self.h_spin.setMaximum(MAX_H)
+        self.h_spin.setValue(cur_diff.rows)
+        self.h_spin.valueChanged.connect(lambda x: self.mines_spin.setMaximum(x * self.w_spin.value() - P))
+        self.w_spin = QSpinBox(self)
+        self.w_spin.setMinimum(MIN_W)
+        self.w_spin.setMaximum(MAX_W)
+        self.w_spin.setValue(cur_diff.columns)
+        self.w_spin.valueChanged.connect(lambda x: self.mines_spin.setMaximum(x * self.h_spin.value() - P))
+        self.mines_spin = QSpinBox(self)
+        self.mines_spin.setMinimum(1)
+        self.mines_spin.setMaximum(cur_diff.rows * cur_diff.columns - P)
+        self.confirm_btn = QPushButton("Confirm")
+
+        self.confirm_btn.clicked.connect(self.confirm)
+
+        if cur_diff.diff == 'easy': self.easy.setChecked(True)
+        elif cur_diff.diff == 'normal': self.normal.setChecked(True)
+        elif cur_diff.diff == 'hard': self.hard.setChecked(True)
+        else: self.custom.setChecked(True)
+            
+        if not self.custom.isChecked():
+            self.h_spin.setEnabled(False)
+            self.w_spin.setEnabled(False)
+            self.mines_spin.setEnabled(False)
 
         self.form = QFormLayout()
-        self.form.setSpacing(20)
+        self.form.setSpacing(10)
 
-        self.form.addRow("&Host:", self.line_host)
-        self.form.addRow("&User:", self.line_user)
-        self.form.addRow("&Password:", self.line_pass)
-        self.form.addRow("Session:", self.hbox)
+        self.form.addWidget(self.easy)
+        self.form.addWidget(self.normal)
+        self.form.addWidget(self.hard)
+        self.form.addWidget(self.custom)
+        self.form.addRow("Height:", self.h_spin)
+        self.form.addRow("Width:", self.w_spin)
+        self.form.addRow("Mines:", self.mines_spin)
+        self.form.addWidget(self.confirm_btn)
 
         self.setLayout(self.form)
+
+
+    def check_checked(self):
+        if self.custom.isChecked():
+            self.h_spin.setEnabled(True)
+            self.w_spin.setEnabled(True)
+            self.mines_spin.setEnabled(True)
+        else:
+            self.h_spin.setEnabled(False)
+            self.w_spin.setEnabled(False)
+            self.mines_spin.setEnabled(False)
+
+
+    def change_difficulty(self):
+        new_diff = None
+        if self.easy.isChecked(): new_diff = self.easy.text().lower()
+        elif self.normal.isChecked(): new_diff = self.normal.text().lower()
+        elif self.hard.isChecked(): new_diff = self.hard.text().lower()
+        else: new_diff = (self.h_spin.value(), self.w_spin.value(), self.mines_spin.value())
+
+        config.set('SETTINGS', 'difficulty', str(new_diff))
+        with open('config.ini', 'w') as cf:
+            config.write(cf)
+
+
+    def confirm(self):
+        self.change_difficulty()
+        self.close()
+
 # ----------------------------------------------------------------------------------------------------------------------
 # Кнопка рестарта ------------------------------------------------------------------------------------------------------
 class RestartButton(QPushButton):
@@ -105,23 +175,17 @@ class MinesweeperWindow(QMainWindow):
         self.__mouse_event__ = None
         self.__need_to_restart__ = False
         self.__game_state__ = -1
-        self.__difficulty_input__ = InputDifficulty()
         self.__difficulty__ = Difficulty(config['SETTINGS']['difficulty'])
+        self.__difficulty_input__ = InputDifficulty(self.__difficulty__)
         self.__surface_width__ = int(config['DEFAULT']['cell_size']) * self.__difficulty__.columns
         self.__surface_height__ = int(config['DEFAULT']['cell_size']) * self.__difficulty__.rows
         super(MinesweeperWindow, self).__init__()
 
         self.menubar = self.menuBar()
-        difficultyMenu = self.menubar.addMenu('Difficulty')
-        difficultyMenuActions = QActionGroup(self)
+        difficultyMenu = self.menubar.addAction('Difficulty')
+        difficultyMenu.triggered.connect(lambda: self.__difficulty_input__.show())
 
-        for difficulty in ['Easy', 'Normal', 'Hard', 'Custom']:
-            action = QAction(difficulty, self)
-            difficultyMenuActions.addAction(action)
-            if difficulty == 'Custom':
-                difficultyMenu.addSeparator()
-            difficultyMenu.addAction(action)
-        difficultyMenuActions.triggered.connect(self.change_difficulty)
+        # difficultyMenuActions.triggered.connect(self.change_difficulty)
 
         self.setFixedSize(self.__surface_width__ + paddings * 2,
                           self.__surface_height__ + panel_size + paddings * 2 + self.menubar.height())
@@ -151,13 +215,6 @@ class MinesweeperWindow(QMainWindow):
 
         windowLayout.addLayout(panelLayout)
         windowLayout.addWidget(self.fieldWidget)
-
-    def change_difficulty(self, action: QAction):
-        config.set('SETTINGS', 'difficulty', action.text().lower())
-        if action.text() == 'Custom':
-            self.__difficulty_input__.open()
-        with open('config.ini', 'w') as configfile:
-            config.write(configfile)
 
     def convert_coordinates(self, x, y) -> tuple:
         offset = int(int(config['DEFAULT']['cell_size'])/5)

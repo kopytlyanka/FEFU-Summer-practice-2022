@@ -12,6 +12,8 @@ class Difficulty:
         self.columns = None
         self.mines = None
 
+        self.diff = None
+
         ########################################
         ## Если передана строка
         if all(map(lambda arg: type(arg) is str, args)):
@@ -19,10 +21,12 @@ class Difficulty:
                 raise Exception(f'there should be exactly 1 name, got {len(args)} instead')
             if args[0] in difficulties.keys():
                 arg = args[0]
+                self.diff = arg
                 self.rows = difficulties[arg]['rows']
                 self.columns = difficulties[arg]['columns']
                 self.mines = difficulties[arg]['mines']
             else:
+                arg = 'custom'
                 args = args[0].replace('(', '').replace(')', '').split(', ')
                 self.rows, self.columns, self.mines = tuple(map(int, args))
         ########################################
